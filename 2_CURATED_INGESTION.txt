@@ -1,0 +1,40 @@
+create schema PROJECT_DB.CURATED;
+create or replace TABLE PROJECT_DB.CURATED.CLEANED_EMPLOYEES (
+	FIRST_NAME VARCHAR,
+	LAST_NAME VARCHAR,
+	GENDER VARCHAR,
+	CITY VARCHAR,
+	SALARY NUMBER(38,0),
+	TITLE VARCHAR,
+	PREV_COMPANY VARCHAR,
+	FIRST_LANGUAGE VARCHAR,
+	LEVEL_SPOKEN VARCHAR
+);
+
+create or replace stream employees_stream on table PROJECT_DB.LAND.JSON_RAW;
+select * from employees_stream;
+
+CREATE OR REPLACE TASK employees_cleaning_task
+    WAREHOUSE = COMPUTE_WH
+    SCHEDULE = '1 MINUTE'
+    WHEN SYSTEM$STREAM_HAS_DATA('employees_stream')
+    AS 
+insert into PROJECT_DB.CURATED.CLEANED_EMPLOYEES 
+ ( select
+      RAW_FILE:first_name::STRING as First_name,
+      RAW_FILE:last_name::STRING as Last_name,
+      RAW_FILE:gender::STRING as GENDER,
+      RAW_FILE:city::STRING as CITY,
+      RAW_FILE:job.salary::INT as salary,
+      RAW_FILE:job.title::STRING as title,
+      RAW_FILE:prev_company[0]::STRING as prev_company,
+      f.value:language::STRING as First_language,
+      f.value:level::STRING as Level_spoken
+from PROJECT_DB.LAND.JSON_RAW, table(flatten(RAW_FILE:spoken_languages)) f
+       );
+
+ALTER TASK employees_cleaning_task RESUME; --SUSPEND
+SHOW TASKS;
+
+select * from table(information_schema.task_history()) order by name asc,scheduled_time desc;
+select * from PROJECT_DB.CURATED.CLEANED_EMPLOYEES
