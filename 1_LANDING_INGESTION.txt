@@ -1,0 +1,62 @@
+--DATABASE creation
+CREATE DATABASE if not exists PROJECT_DB;
+create schema if not exists land;
+use schema project_db.land;
+
+
+-- create integration object that contains the access information
+CREATE OR REPLACE STORAGE INTEGRATION azure_integration 
+TYPE = EXTERNAL_STAGE
+STORAGE_PROVIDER = AZURE
+ENABLED = TRUE
+AZURE_TENANT_ID = '9ecede0b-0e07-4da4-8047-e0672d6e403e'
+--specific to account for identification, can be found in tenant properties in azure
+STORAGE_ALLOWED_LOCATIONS = ('azure://storageaccountsnow.blob.core.windows.net/csv', 'azure://storageaccountsnow.blob.core.windows.net/json'); 
+-- syntax : azure://<storage_account_name>.blob.core.windows.net/<container_name>
+
+
+-- Describe integration object to provide access
+-- open AZURE_CONSENT_URL in new tab, copy app member name and grant access from azure
+DESC STORAGE integration azure_integration;
+-- Then go to Azure and open IAM => ADD ROLE ASSIGNMENT => search for STORATE BLOB DATA CONTRIBUTOR role => SELECT MEMBER => paste and select APP MEMBER NAME copied above => REVIEW and ASSIGN ROLE
+
+-- json file format
+create or replace file format project_json_format
+ type = json; 
+
+-- create stage object
+create or replace stage PROJECT_DB.public.project_stg
+STORAGE_INTEGRATION = azure_integration
+URL = 'azure://storageaccountsnow.blob.core.windows.net/csv'
+FILE_FORMAT = fileformat_azure_json;
+
+-- list files
+LIST @project_db.public.project_stg;
+
+--create integration notification in azure
+--create queue storage=> register Microsoft.EventGrid in subscriptions=> create event subscription (by selecting 'blob created' in filter event type, 'Storage Queue' in Endpoint type, storage account)
+
+CREATE OR REPLACE NOTIFICATION INTEGRATION snowpipe_event
+ENABLED = true
+TYPE = QUEUE
+NOTIFICATION_PROVIDER = AZURE_STORAGE_QUEUE
+AZURE_STORAGE_QUEUE_PRIMARY_URI = 'azure://queue.blob.core.windows.net'
+AZURE_TENANT_ID = '9ecede0b-0e07-4da4-8047-e0672d6e403e';
+
+-- Register Integration
+DESC notification integration snowpipe_event;
+
+--create raw table for json
+CREATE OR REPLACE table project_db.land.json_raw (
+raw_file variant);
+
+-- create pipe
+create pipe project_db.land.employee_pipe
+auto_ingest = true
+integration = 'SNOWPIPE_EVENT'
+as
+copy into project_db.land.json_raw
+from @project_db.public.project_stg;
+
+SELECT SYSTEM$PIPE_STATUS( 'EMPLOYEE_PIPE' );
+
