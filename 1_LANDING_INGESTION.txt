@@ -4,15 +4,14 @@ create schema if not exists land;
 use schema project_db.land;
 
 
--- create integration object that contains the access information
+-- creating integration object that contains the access information
 CREATE OR REPLACE STORAGE INTEGRATION azure_integration 
 TYPE = EXTERNAL_STAGE
 STORAGE_PROVIDER = AZURE
 ENABLED = TRUE
 AZURE_TENANT_ID = '9ecede0b-0e07-4da4-8047-e0672d6e403e'
 --specific to account for identification, can be found in tenant properties in azure
-STORAGE_ALLOWED_LOCATIONS = ('azure://storageaccountsnow.blob.core.windows.net/csv', 'azure://storageaccountsnow.blob.core.windows.net/json'); 
--- syntax : azure://<storage_account_name>.blob.core.windows.net/<container_name>
+STORAGE_ALLOWED_LOCATIONS = ('azure://storageaccountsnow.blob.core.windows.net/json'); 
 
 
 -- Describe integration object to provide access
